@@ -48,20 +48,50 @@ int main(int argc, char** argv)
     if (linebuf[0] == '\f')
     {
       size_t s = strlen(linebuf);
-      if (s>6 && strcmp(linebuf+s-6 , "PAGE\tS")==0)
+      if (s > 6 && strcmp(linebuf + s - 6, "PAGE\tS") == 0)
+      {
+        while (strcmp(linebuf, "Symbols:") != 0)
+          ifs.getline(linebuf, sizeof(linebuf));
+        do
+        {
+          ifs.getline(linebuf, sizeof(linebuf));
+          if (linebuf[0] == '\f')
+            for (int i = 0; i < 3; ++i)
+              ifs.getline(linebuf, sizeof(linebuf));
+          const char* symptr = linebuf;
+          while (*symptr != 0)
+          {
+            char addr[5];
+            strncpy_s(addr, symptr, 4);
+            symptr += 5;
+            while (*symptr == '\t' || *symptr == ' ')
+              symptr++;
+            char name[32];
+            char* namePtr = name;
+            while (*symptr != ' ' && *symptr && (namePtr - name) < sizeof(name))
+              *namePtr++ = *symptr++;
+            for (char* p = name; *p; ++p)
+              if (*p == '@')
+                *p = '_';
+            *namePtr = 0;
+            ofs_noi << "DEFINE " << name << " " << addr << '\n';
+            while (*symptr == ' ')
+              ++symptr;
+          }
+        } while (strlen(linebuf) != 0);
+
         break;
+      }
       skipline = 2;
       continue;
     }
     if (linebuf[2] != ' ' && linebuf[10] != ' ')
     {
       char addr[5];
-      strncpy_s(addr, linebuf+2, 4);
+      strncpy_s(addr, linebuf + 2, 4);
       ofs_noi << "LINE " << lineNo << " " << addr << '\n';
     }
-    const char* asmLine = linebuf + 26+6;
-    //if (asmLine[0] == '+')
-    //  asmLine++;
+    const char* asmLine = linebuf + 26 + 6;
     ofs_asm << asmLine << '\n';
     lineNo++;
   }
