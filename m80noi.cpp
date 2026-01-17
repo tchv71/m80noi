@@ -20,10 +20,13 @@ int main(int argc, char** argv)
   strcat_s(asmName, ".ASM");
   std::ofstream ofs_asm(asmName);
   char noiName[128];
+  char shortName[128];
   strcpy_s(noiName, argv[1]);
   char* pExt = strrchr(noiName, '.');
+  bool bC = pExt && _stricmp(pExt+1, "LST") == 0;
   if (pExt)
     *pExt = 0;
+  strcpy_s(shortName, noiName);
   strcat_s(noiName, ".NOI");
   std::ofstream ofs_noi(noiName);
   if (!argv[1] || !ifs.is_open())
@@ -45,7 +48,7 @@ int main(int argc, char** argv)
       skipline--;
       continue;
     }
-    if (linebuf[0] == '\f')
+    if (!bC && linebuf[0] == '\f')
     {
       size_t s = strlen(linebuf);
       if (s > 6 && strcmp(linebuf + s - 6, "PAGE\tS") == 0)
@@ -85,15 +88,50 @@ int main(int argc, char** argv)
       skipline = 2;
       continue;
     }
-    if (linebuf[2] != ' ' && linebuf[10] != ' ')
+    if (!bC && linebuf[2] != ' ' && linebuf[10] != ' ' || bC && linebuf[7] != ' ' && linebuf[12] != ' ')
     {
       char addr[5];
-      strncpy_s(addr, linebuf + 2, 4);
+      strncpy_s(addr, !bC ? linebuf + 2 : linebuf + 7, 4);
       ofs_noi << "LINE " << lineNo << " " << addr << '\n';
     }
-    const char* asmLine = linebuf + 26 + 6;
+    const char* asmLine = linebuf + (!bC ? 26 + 6 : 24);
     ofs_asm << asmLine << '\n';
     lineNo++;
   }
+  if (bC)
+  {
+    char symName[128];
+    strcpy_s(symName, shortName);
+    strcat_s(symName, ".SYM");
+    std::ifstream ifs(symName);
+
+    do
+    {
+      ifs.getline(linebuf, sizeof(linebuf));
+      const char* symptr = linebuf;
+      //while (*symptr != 0)
+      {
+        char name[32];
+        char* namePtr = name;
+        while (*symptr != ' ' && *symptr && (namePtr - name) < sizeof(name))
+          *namePtr++ = *symptr++;
+        if (strlen(name)==0)
+          break;
+        while (*symptr == '\t' || *symptr == ' ')
+          symptr++;
+        for (char* p = name; *p; ++p)
+          if (*p == '@')
+            *p = '_';
+        *namePtr = 0;
+        char addr[5];
+        strncpy_s(addr, symptr, 4);
+        symptr += 5;
+        ofs_noi << "DEFINE " << name << " " << addr << '\n';
+        while (*symptr == ' ')
+          ++symptr;
+      }
+    } while (strlen(linebuf) != 0);
+  }
+
 }
 
